@@ -28,8 +28,9 @@ const LOGIN_URL = "https://lms.scotsenglish.edu.vn/login.html";
 const BASE = "https://lms.scotsenglish.edu.vn/data/setup.asmx";
 const STAFF_ID = 9072;
 
-// Tuần tối đa để dò điểm cho mỗi lớp (tính từ Start Date). Chỉnh nếu chương
-// trình học có nhiều/ít tuần hơn con số này.
+// Mức trần an toàn (phòng dữ liệu Journal bị lỗi/nhiễu cho ra số Lecture bất
+// thường). Số tuần thực tế để cào điểm được xác định từ NGÀY THẬT của
+// CounClassInfoJournalList, không còn tính theo Start Date + lịch nữa.
 const MAX_WEEK = 30;
 
 // Chi nhánh -> brch_id. Khi mở chi nhánh mới, thêm 1 dòng vào đây.
@@ -430,23 +431,36 @@ async function main() {
           }
         }
 
-        const parseDate = v => {
-          if (!v) return null;
-          const s = String(v).trim();
-          if (/^\d{4}-\d{2}-\d{2}/.test(s)) return new Date(s.slice(0, 10));
-          if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) {
-            const [a, b, y] = s.split("/").map(Number);
-            return new Date(y, a - 1, b);
-          }
-          return null;
-        };
+        // Dùng dữ liệu THẬT từ CounClassInfoJournalList (ngày thực tế đã diễn ra
+        // của từng Lecture) thay vì ước tính theo lịch (Start Date + số ngày),
+        // vì lớp có thể học bù/nghỉ/lệch lịch so với kế hoạch ban đầu.
         const reportDate = new Date(reportDateIso);
-        const expectedWeek = startDate => {
-          if (!startDate || isNaN(startDate)) return 0;
-          const diffDays = Math.floor((reportDate - startDate) / 86400000);
-          if (diffDays < 0) return 0;
-          return Math.min(MAX_WEEK, Math.floor(diffDays / 7) + 1);
+        const parseJournalDate = raw => {
+          const m = String(raw ?? "").match(/^(\d{4}-\d{2}-\d{2})/);
+          return m ? new Date(m[1]) : null;
         };
+        const journalCache = new Map(); // tránh gọi lại nếu 1 job được xử lý lại (resume)
+        async function getActualWeek(job) {
+          if (journalCache.has(job.cls_id)) return journalCache.get(job.cls_id);
+          let maxLecture = 0;
+          try {
+            const rows = await post("CounClassInfoJournalList", { counn: { coun_cls_id: job.cls_id } });
+            for (const r of rows) {
+              const lectureNo = Number(String(r.Lecture ?? "").match(/\d+/)?.[0]) || 0;
+              const d = parseJournalDate(r.Date);
+              // Chỉ tính lecture đã THỰC SỰ diễn ra (ngày <= hôm nay), không tính
+              // các buổi đã lên lịch sẵn nhưng chưa tới (Att/Abs = 0, Taught = null)
+              if (lectureNo > 0 && d && d <= reportDate && lectureNo > maxLecture) maxLecture = lectureNo;
+            }
+          } catch (err) {
+            // Nếu lỗi (lớp mới, chưa có Journal...) coi như chưa học buổi nào,
+            // để không cào nhầm dữ liệu tuần chưa diễn ra
+            maxLecture = 0;
+          }
+          const result = Math.min(maxLecture, MAX_WEEK);
+          journalCache.set(job.cls_id, result);
+          return result;
+        }
         const safeNumber = v => {
           const n = Number(v);
           return v === null || v === undefined || v === "" || Number.isNaN(n) ? null : n;
@@ -511,8 +525,7 @@ async function main() {
         let done = 0;
 
         async function processClass(job) {
-          const startDate = parseDate(job.StartDate);
-          const expWeek = expectedWeek(startDate);
+          const expWeek = await getActualWeek(job);
           for (let weekNo = 1; weekNo <= expWeek; weekNo++) {
             const week = weekMapByBsem.get(job.bsem_id)?.get(weekNo);
             if (!week) continue;
