@@ -28,9 +28,10 @@ const LOGIN_URL = "https://lms.scotsenglish.edu.vn/login.html";
 const BASE = "https://lms.scotsenglish.edu.vn/data/setup.asmx";
 const STAFF_ID = 9072;
 
-// Mức trần an toàn cho số Lecture (phòng dữ liệu bất thường). Danh sách
-// Lecture thực tế của mỗi lớp lấy qua CounRptLectureList — y hệt cơ chế
-// i-Learning — nên không cần tính "Tuần"/week_id gì nữa.
+// Mức trần an toàn cho số Lecture (phòng dữ liệu bất thường). Lecture nào
+// thực sự đã diễn ra được xác định qua NGÀY THẬT từ CounClassInfoJournalList,
+// không phải cứ có trong CounRptLectureList là tính (vì API đó liệt kê SẴN
+// toàn bộ Lecture của cả khoá học, kể cả buổi tương lai chưa học tới).
 const MAX_WEEK = 30;
 
 // Chi nhánh -> brch_id. Khi mở chi nhánh mới, thêm 1 dòng vào đây.
@@ -90,14 +91,6 @@ Vùng 1\tNguyễn Tuân
 Vùng 1\tHoàng Đạo Thúy
 Vùng 1\tHoàng Quốc Việt
 Vùng 1\tTrung Văn
-Vùng của Liên\tHải Dương
-Vùng của Liên\tVĩnh Phúc
-Vùng của Liên\tLong Biên
-Vùng của Liên\tVĩnh Phúc 3
-Vùng của Liên\tPhúc Yên
-Vùng của Liên\tViệt Trì
-Vùng của Liên\tMỹ Đình
-Vùng của Liên\tVinhomes Gardenia
 Vùng 3\tTimes City
 Vùng 3\tVăn Khê
 Vùng 3\tAn Khánh
@@ -106,23 +99,31 @@ Vùng 3\tVinhomes Smart City 2
 Vùng 3\tDương Nội
 Vùng 3\tPhạm Văn Đồng
 Vùng 3\tThái Bình
+Vùng 3\tVĩnh Phúc
+Vùng 3\tVĩnh Phúc 3
 Vùng 5\tTừ Sơn
 Vùng 5\tHải Phòng 2
 Vùng 5\tHải Phòng
 Vùng 5\tBắc Ninh
 Vùng 5\tBắc Ninh 2
 Vùng 5\tBắc Giang
+Vùng 5\tHải Dương
+Vùng 5\tMỹ Đình
+Vùng 5\tPhúc Yên
 Vùng 6\tSài Đồng
 Vùng 6\tVinh
 Vùng 6\tOcean Park
 Vùng 6\tTrường Chinh
 Vùng 6\tĐịnh Công
+Vùng 6\tLong Biên
+Vùng 6\tViệt Trì
 Vùng 7\tĐà Nẵng
 Vùng 7\tĐà Nẵng 2
 Vùng 7\tPhan Văn Trị
 Vùng 8\tCeladon - Tân Phú
 Vùng 8\tPhạm Văn Chiêu
-Vùng 8\tGrand Park`;
+Vùng 8\tGrand Park
+Vùng TL\tVinhomes Gardenia`;
 
 function buildRegionMap() {
   const map = {};
@@ -515,13 +516,30 @@ async function main() {
 
         async function processClass(job) {
           try {
-            const lectureRows = await post("CounRptLectureList", { counn: { cls_id: job.cls_id } });
+            const [lectureRows, journalRows] = await Promise.all([
+              post("CounRptLectureList", { counn: { cls_id: job.cls_id } }),
+              post("CounClassInfoJournalList", { counn: { coun_cls_id: job.cls_id } })
+            ]);
+
+            // CounRptLectureList trả về TOÀN BỘ Lecture đã lên lịch cho cả khoá học
+            // (kể cả buổi tương lai chưa học tới) — không thể dùng trực tiếp để biết
+            // "đã học tới đâu". Phải đối chiếu với ngày THẬT từ CounClassInfoJournalList
+            // để chỉ giữ lại Lecture đã thực sự diễn ra (Date <= hôm nay).
+            const today = new Date();
+            const happenedLectures = new Set();
+            for (const r of journalRows) {
+              const lectureNo = Number(String(r.Lecture ?? "").match(/\d+/)?.[0]) || 0;
+              const m = String(r.Date ?? "").match(/^(\d{4}-\d{2}-\d{2})/);
+              const d = m ? new Date(m[1]) : null;
+              if (lectureNo > 0 && d && d <= today) happenedLectures.add(lectureNo);
+            }
+
             const lectures = lectureRows
               .map(x => ({
                 id: Number(x.ssect_id),
                 order: Number(x.ssect_order) || Number(String(x.ssect_name ?? "").match(/\d+/)?.[0]) || 0
               }))
-              .filter(x => x.id && x.order >= 1 && x.order <= MAX_WEEK)
+              .filter(x => x.id && x.order >= 1 && x.order <= MAX_WEEK && happenedLectures.has(x.order))
               .sort((a, b) => a.order - b.order);
 
             for (const lecture of lectures) {
