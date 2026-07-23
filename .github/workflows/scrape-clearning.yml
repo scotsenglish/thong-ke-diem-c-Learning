@@ -1,15 +1,23 @@
 name: Scrape c-Learning data (real-time)
 
+# Tự động chạy 3 lần/ngày theo giờ Việt Nam (UTC+7): 06:00, 12:00, 18:00
+# = 23:00 (hôm trước), 05:00, 11:00 giờ UTC.
+# Cũng có thể chạy tay từ tab "Actions" trên GitHub (nút "Run workflow").
 on:
   schedule:
-    # Giờ UTC. Việt Nam = UTC+7 -> 23:00 UTC=6h sáng, 05:00 UTC=12h trưa, 11:00 UTC=18h tối
-    - cron: "0 23 * * *"
-    - cron: "0 5 * * *"
-    - cron: "0 11 * * *"
+    - cron: "13 23 * * *"  # ~06:13 giờ VN (né phút 0, giờ cao điểm dễ bị trễ/bỏ lịch)
+    - cron: "27 5 * * *"   # ~12:27 giờ VN
+    - cron: "42 11 * * *"  # ~18:42 giờ VN
   workflow_dispatch: {}
 
 permissions:
   contents: write
+
+# Nếu job trước còn đang chạy (ví dụ do resume checkpoint dở dang) thì job mới
+# không chạy chồng lên, tránh 2 job cùng ghi vào data/clearning_state.json.
+concurrency:
+  group: clearning-scrape
+  cancel-in-progress: false
 
 jobs:
   scrape:
@@ -34,7 +42,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Run scraper
+      - name: Run scraper (lấy dữ liệu từ LMS)
         env:
           LMS_LOGIN_ID: ${{ secrets.LMS_LOGIN_ID }}
           LMS_LOGIN_PASSWORD: ${{ secrets.LMS_LOGIN_PASSWORD }}
@@ -42,10 +50,43 @@ jobs:
           CLEARNING_APPS_SCRIPT_TOKEN: ${{ secrets.CLEARNING_APPS_SCRIPT_TOKEN }}
         run: node scripts/scrape-clearning.js
 
-      - name: Upload debug artifacts on failure
+      - name: Gửi email thông báo chạy THẤT BẠI
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          from: c-Learning Dashboard Bot
+          to: ${{ secrets.MAIL_TO }}
+          subject: "❌ c-Learning Dashboard chạy THẤT BẠI"
+          body: |
+            Workflow "Scrape c-Learning data (real-time)" vừa chạy bị lỗi, cần kiểm tra.
+
+            Xem log chi tiết tại: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Upload ảnh/HTML debug nếu đăng nhập LMS thất bại
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: debug-clearning
           path: debug/
           if-no-files-found: ignore
+
+      - name: Gửi email thông báo chạy thành công
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          from: c-Learning Dashboard Bot
+          to: ${{ secrets.MAIL_TO }}
+          subject: "✅ c-Learning Dashboard đã cập nhật thành công"
+          body: |
+            Workflow "Scrape c-Learning data (real-time)" vừa chạy xong thành công.
+
+            Xem dashboard tại: https://scotsenglish.github.io/thong-ke-diem-c-Learning/
+            Chi tiết log: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
