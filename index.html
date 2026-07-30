@@ -65,6 +65,11 @@
   .kpi-label{font-size:11px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px;}
   .kpi-value{font-size:23px;font-weight:700;margin-bottom:2px;}
   .kpi-sub{font-size:11px;color:var(--text-secondary);}
+  .kpi-max{font-size:13px;font-weight:400;color:var(--text-secondary);margin-left:4px;}
+  .kpi-split-row{display:flex;gap:16px;margin-top:2px;}
+  .kpi-split-item{flex:1;min-width:0;}
+  .kpi-split-name{font-size:10px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.3px;margin-bottom:3px;}
+  .kpi-split-value{font-size:19px;font-weight:700;}
   .section-label{font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.4px;margin:4px 0 8px 2px;}
 
   .chart-row{display:grid;grid-template-columns:1.3fr 1fr;gap:var(--gap);margin-bottom:var(--gap);}
@@ -210,8 +215,14 @@
     <div class="section-label">Điểm trung bình</div>
     <section class="kpi-row">
       <div class="kpi-card hw"><div class="kpi-label">Điểm TB Homework</div><div class="kpi-value" id="c-kpi-hw-avg">–</div></div>
-      <div class="kpi-card bt"><div class="kpi-label">Điểm TB Book Test</div><div class="kpi-value" id="c-kpi-bt-avg">–</div></div>
-      <div class="kpi-card lq"><div class="kpi-label">Điểm TB Lesson Quiz</div><div class="kpi-value" id="c-kpi-lq-avg">–</div></div>
+      <div class="kpi-card bt"><div class="kpi-label">Điểm TB Book Test</div><div class="kpi-value"><span id="c-kpi-bt-avg">–</span><span class="kpi-max">/ 20</span></div></div>
+      <div class="kpi-card lq">
+        <div class="kpi-label">Điểm TB Lesson Quiz</div>
+        <div class="kpi-split-row">
+          <div class="kpi-split-item"><div class="kpi-split-name">CK English 1</div><div class="kpi-split-value"><span id="c-kpi-lq-avg-1">–</span><span class="kpi-max">/ 8</span></div></div>
+          <div class="kpi-split-item"><div class="kpi-split-name">CK English 2-3-4</div><div class="kpi-split-value"><span id="c-kpi-lq-avg-234">–</span><span class="kpi-max">/ 14</span></div></div>
+        </div>
+      </div>
     </section>
 
     <section class="chart-row">
@@ -285,8 +296,14 @@
     <div class="section-label">Điểm trung bình</div>
     <section class="kpi-row">
       <div class="kpi-card hw"><div class="kpi-label">Điểm TB Homework</div><div class="kpi-value" id="s-kpi-hw-avg">–</div></div>
-      <div class="kpi-card bt"><div class="kpi-label">Điểm TB Book Test</div><div class="kpi-value" id="s-kpi-bt-avg">–</div></div>
-      <div class="kpi-card lq"><div class="kpi-label">Điểm TB Lesson Quiz</div><div class="kpi-value" id="s-kpi-lq-avg">–</div></div>
+      <div class="kpi-card bt"><div class="kpi-label">Điểm TB Book Test</div><div class="kpi-value"><span id="s-kpi-bt-avg">–</span><span class="kpi-max">/ 20</span></div></div>
+      <div class="kpi-card lq">
+        <div class="kpi-label">Điểm TB Lesson Quiz</div>
+        <div class="kpi-split-row">
+          <div class="kpi-split-item"><div class="kpi-split-name">CK English 1</div><div class="kpi-split-value"><span id="s-kpi-lq-avg-1">–</span><span class="kpi-max">/ 8</span></div></div>
+          <div class="kpi-split-item"><div class="kpi-split-name">CK English 2-3-4</div><div class="kpi-split-value"><span id="s-kpi-lq-avg-234">–</span><span class="kpi-max">/ 14</span></div></div>
+        </div>
+      </div>
     </section>
 
     <section class="table-section">
@@ -341,13 +358,19 @@
 </div>
 
 <script>
-// Dữ liệu được tải real-time từ Google Apps Script (xem loadLiveData() ở cuối file),
-// không còn nhúng cứng vào file này nữa.
-const CLASS_DATA = [];
-const STUDENT_DATA = [];
+// Dữ liệu được tải real-time (xem loadLiveData() ở cuối file), không còn
+// nhúng cứng vào file này nữa.
 
 // !! DÁN URL WEB APP CỦA BẠN VÀO ĐÂY (xem Code.gs / hướng dẫn thiết lập) !!
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbymm2QfCtYHZtNVMfG_rEYpWKa_xJtbZdBivm0Jc2IJdyXaUL3688VbjTbALvOn030WEA/exec";
+
+// Bảng tổng hợp lớp/học viên đọc từ file JSON tĩnh do scraper tự commit vào
+// repo mỗi lần chạy xong — tránh việc MỌI người mở trang đều gọi thẳng Apps
+// Script (dễ nghẽn khi nhiều người truy cập cùng lúc, vì Apps Script giới hạn
+// số lượt thực thi đồng thời). Riêng "Tra cứu chi tiết theo lớp" vẫn gọi Apps
+// Script trực tiếp (xem fetchAndRenderClassDetail) vì chỉ chạy khi người dùng
+// bấm xem, không phải mỗi lần mở trang.
+const LIVE_DATA_JSON_URL = "data/live-data.json";
 
 
 // Chi nhánh -> Vùng. Nếu mở chi nhánh mới, thêm 1 dòng vào đây theo đúng định dạng.
@@ -729,10 +752,15 @@ class Dashboard{
 
     const hwAvg = this.weightedAvgScore(data,'hw_score_total','hw_score_count');
     const btAvg = this.weightedAvgScore(data,'bt_score_total','bt_score_count');
-    const lqAvg = this.weightedAvgScore(data,'lq_score_total','lq_score_count');
+    // Lesson Quiz chỉ có ở chương trình CK English, và thang điểm khác nhau
+    // giữa CK English 1 (max 8) và CK English 2/3/4 (max 14), nên phải tách
+    // riêng 2 điểm TB — gộp chung sẽ ra 1 con số không có ý nghĩa vì lẫn 2 thang.
+    const lqAvg1 = this.weightedAvgScore(data.filter(d=>d.syllabus==='CK English 1'),'lq_score_total','lq_score_count');
+    const lqAvg234 = this.weightedAvgScore(data.filter(d=>d.syllabus==='CK English 2'||d.syllabus==='CK English 3'||d.syllabus==='CK English 4'),'lq_score_total','lq_score_count');
     document.getElementById('c-kpi-hw-avg').textContent = hwAvg===null ? '–' : hwAvg.toFixed(2);
     document.getElementById('c-kpi-bt-avg').textContent = btAvg===null ? '–' : btAvg.toFixed(2);
-    document.getElementById('c-kpi-lq-avg').textContent = lqAvg===null ? '–' : lqAvg.toFixed(2);
+    document.getElementById('c-kpi-lq-avg-1').textContent = lqAvg1===null ? '–' : lqAvg1.toFixed(2);
+    document.getElementById('c-kpi-lq-avg-234').textContent = lqAvg234===null ? '–' : lqAvg234.toFixed(2);
   }
 
   upsertChart(canvasId, type, data, extraOptions){
@@ -867,10 +895,12 @@ class Dashboard{
 
     const hwAvg = this.weightedAvgScore(data,'hw_score_total','hw_score_count');
     const btAvg = this.weightedAvgScore(data,'bt_score_total','bt_score_count');
-    const lqAvg = this.weightedAvgScore(data,'lq_score_total','lq_score_count');
+    const lqAvg1 = this.weightedAvgScore(data.filter(d=>d.syllabus==='CK English 1'),'lq_score_total','lq_score_count');
+    const lqAvg234 = this.weightedAvgScore(data.filter(d=>d.syllabus==='CK English 2'||d.syllabus==='CK English 3'||d.syllabus==='CK English 4'),'lq_score_total','lq_score_count');
     document.getElementById('s-kpi-hw-avg').textContent = hwAvg===null ? '–' : hwAvg.toFixed(2);
     document.getElementById('s-kpi-bt-avg').textContent = btAvg===null ? '–' : btAvg.toFixed(2);
-    document.getElementById('s-kpi-lq-avg').textContent = lqAvg===null ? '–' : lqAvg.toFixed(2);
+    document.getElementById('s-kpi-lq-avg-1').textContent = lqAvg1===null ? '–' : lqAvg1.toFixed(2);
+    document.getElementById('s-kpi-lq-avg-234').textContent = lqAvg234===null ? '–' : lqAvg234.toFixed(2);
   }
 
   setupLookup(){
@@ -1150,22 +1180,13 @@ async function loadLiveData() {
   const splashHint = document.querySelector(".splash-hint");
   if (splashBtn) { splashBtn.disabled = true; splashBtn.textContent = "Đang tải dữ liệu..."; splashBtn.style.opacity = "0.6"; }
 
-  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL.indexOf("PASTE_YOUR") === 0) {
-    dashboard = new Dashboard(CLASS_DATA, STUDENT_DATA);
-    if (dataInfo) dataInfo.textContent = "Chưa cấu hình APPS_SCRIPT_URL — đang dùng dữ liệu trống. Bấm \"Tải file export mới\" để nạp thủ công, hoặc dán URL Apps Script vào file.";
-    if (splashBtn) { splashBtn.disabled = false; splashBtn.textContent = "Vào Dashboard →"; splashBtn.style.opacity = "1"; }
-    return;
-  }
-
   try {
-    const [classData, studentData, meta] = await Promise.all([
-      jsonpFetch(APPS_SCRIPT_URL + "?type=class"),
-      jsonpFetch(APPS_SCRIPT_URL + "?type=student"),
-      jsonpFetch(APPS_SCRIPT_URL + "?type=meta").catch(() => ({ lastUpdated: null })),
-    ]);
-    dashboard = new Dashboard(classData, studentData);
-    const updatedText = meta && meta.lastUpdated
-      ? `Dữ liệu cập nhật tự động (real-time) — lần gần nhất: ${new Date(meta.lastUpdated).toLocaleString("vi-VN")}`
+    const res = await fetch(LIVE_DATA_JSON_URL + "?v=" + Date.now(), { cache: "no-store" });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const payload = await res.json();
+    dashboard = new Dashboard(payload.classRows || [], payload.studentRows || []);
+    const updatedText = payload.lastUpdated
+      ? `Dữ liệu cập nhật tự động (real-time) — lần gần nhất: ${new Date(payload.lastUpdated).toLocaleString("vi-VN")}`
       : "Dữ liệu cập nhật tự động (real-time) từ hệ thống c-Learning";
     if (dataInfo) dataInfo.textContent = updatedText;
   } catch (err) {

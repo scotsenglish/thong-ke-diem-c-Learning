@@ -216,9 +216,10 @@ async function main() {
   }
 
   const repoRoot = path.join(__dirname, "..");
-  function gitCheckpointCommit(message) {
+  function gitCheckpointCommit(message, extraFiles = []) {
     try {
-      execSync("git add data/clearning_state.json", { cwd: repoRoot, stdio: "pipe" });
+      const filesToAdd = ["data/clearning_state.json", ...extraFiles];
+      execSync(`git add ${filesToAdd.join(" ")}`, { cwd: repoRoot, stdio: "pipe" });
       const hasChanges = execSync("git diff --cached --name-only", { cwd: repoRoot }).toString().trim().length > 0;
       if (!hasChanges) return;
       execSync(`git commit -m "${message.replace(/"/g, "'")}"`, { cwd: repoRoot, stdio: "pipe" });
@@ -701,6 +702,14 @@ async function main() {
 
   console.log(`Tổng hợp xong: ${classRows.length} lớp, ${studentRows.length} học viên, ${rawRows.length} lớp có dữ liệu chi tiết từng buổi. Đang đẩy lên Apps Script...`);
 
+  // File JSON tĩnh để dashboard đọc trực tiếp qua GitHub Pages thay vì gọi Apps
+  // Script mỗi lần người dùng mở trang — xem giải thích ở LIVE_DATA_JSON_URL
+  // trong index.html.
+  fs.writeFileSync(
+    path.join(outDir, "live-data.json"),
+    JSON.stringify({ classRows, studentRows, lastUpdated: new Date().toISOString() })
+  );
+
   try {
     const res = await postJson(appsScriptUrl, { token: appsScriptToken, classRows, studentRows, rawRows });
     console.log("Kết quả đẩy dữ liệu:", res.status, res.body.slice(0, 300));
@@ -711,7 +720,7 @@ async function main() {
   }
 
   fs.writeFileSync(statePath, JSON.stringify({ status: "done", cycleFinishedAt: new Date().toISOString(), totalClassesInCycle }, null, 2));
-  gitCheckpointCommit("c-Learning: hoàn tất 1 vòng quét, đã đẩy dữ liệu lên Apps Script");
+  gitCheckpointCommit("c-Learning: hoàn tất 1 vòng quét, đã đẩy dữ liệu lên Apps Script", ["data/live-data.json"]);
 
   await browser.close();
   console.log("== Hoàn tất ==");
