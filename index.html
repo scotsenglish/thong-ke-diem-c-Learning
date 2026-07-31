@@ -55,8 +55,9 @@
   .data-info{font-size:11.5px;color:var(--text-secondary);margin:-8px 0 12px 2px;}
 
   .tabs{display:flex;gap:8px;margin-bottom:var(--gap);}
-  .tab-btn{padding:10px 18px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:13px;font-weight:600;cursor:pointer;color:var(--text-secondary);}
+  .tab-btn{display:inline-flex;align-items:center;gap:7px;padding:10px 18px;border-radius:8px;border:1px solid var(--border);background:#fff;font-size:13px;font-weight:600;cursor:pointer;color:var(--text-secondary);}
   .tab-btn.active{background:var(--bg-header);color:#fff;border-color:var(--bg-header);}
+  .tab-icon{display:inline-flex;flex:none;}
 
   .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:var(--gap);margin-bottom:var(--gap);}
   .kpi-card{background:var(--bg-card);border-radius:var(--radius);padding:16px 18px;box-shadow:0 1px 3px rgba(0,0,0,.06);border-left:4px solid #cbd5e1;}
@@ -84,7 +85,8 @@
   .heatmap-section h3{margin:0 0 4px 0;font-size:14px;font-weight:700;}
   .heatmap-section .hint{font-size:11px;color:var(--text-secondary);margin-bottom:12px;}
   table.heatmap{border-collapse:collapse;font-size:12px;width:100%;}
-  table.heatmap th{padding:8px 10px;text-align:left;color:var(--text-secondary);font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border);}
+  table.heatmap th{padding:8px 10px;text-align:center;color:var(--text-secondary);font-weight:600;white-space:nowrap;border-bottom:2px solid var(--border);}
+  table.heatmap th:first-child{text-align:left;}
   table.heatmap td{padding:6px 8px;text-align:center;white-space:nowrap;border-bottom:1px solid #f0f0f0;}
   table.heatmap td.rowlabel{text-align:left;font-weight:600;color:var(--text-primary);}
   .cell{display:inline-flex;align-items:center;justify-content:center;min-width:44px;padding:4px 6px;border-radius:6px;font-weight:600;font-size:11px;color:#fff;}
@@ -147,6 +149,18 @@
   .dashboard-footer{text-align:center;font-size:12px;color:var(--text-secondary);padding:14px 0;}
   .hidden{display:none;}
 
+  #c-table-body tr{cursor:pointer;}
+  #c-table-body tr:hover{background:#eef2f7;}
+  .modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.55);z-index:2000;display:flex;align-items:center;justify-content:center;padding:24px;}
+  .modal-overlay.hidden{display:none;}
+  .modal-box{background:#fff;border-radius:var(--radius);max-width:920px;width:100%;max-height:85vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.3);}
+  .modal-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:18px 22px;border-bottom:1px solid var(--border);}
+  .modal-header h3{margin:0 0 4px 0;font-size:16px;}
+  .modal-header .hint{margin:0;}
+  .modal-close{border:none;background:#f1f3f5;border-radius:6px;width:30px;height:30px;flex:none;cursor:pointer;font-size:15px;line-height:1;color:var(--text-secondary);}
+  .modal-close:hover{background:#e5e7eb;}
+  .modal-body{padding:16px 22px 22px;overflow:auto;}
+
   #splash-screen{position:fixed;inset:0;background:#ffffff;z-index:9999;display:flex;align-items:center;justify-content:center;overflow:hidden;cursor:pointer;}
   #splash-screen.splash-hidden{display:none;}
   .splash-blob-tl{position:absolute;top:-120px;left:-160px;width:480px;height:360px;background:#eaf4ef;border-radius:0 0 260px 0;}
@@ -202,9 +216,9 @@
   <div class="data-info" id="data-info">Đang dùng dữ liệu mẫu ban đầu.</div>
 
   <div class="tabs">
-    <button class="tab-btn active" data-tab="classes">📚 Theo Lớp</button>
-    <button class="tab-btn" data-tab="students">🧑‍🎓 Theo Học viên</button>
-    <button class="tab-btn" data-tab="tracuu">🔍 Tra cứu</button>
+    <button class="tab-btn active" data-tab="classes"><span class="tab-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span>Theo Lớp</button>
+    <button class="tab-btn" data-tab="students"><span class="tab-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>Theo Học viên</button>
+    <button class="tab-btn" data-tab="tracuu"><span class="tab-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span>Tra cứu</button>
   </div>
 
   <!-- ============ TAB: CLASSES ============ -->
@@ -230,6 +244,13 @@
       </div>
     </section>
 
+    <div id="class-region-section">
+      <div class="section-label">Theo Vùng</div>
+      <section class="heatmap-section">
+        <div id="class-region-wrap"></div>
+      </section>
+    </div>
+
     <section class="chart-row">
       <div class="chart-container">
         <h3>% Nhập điểm theo Vùng</h3>
@@ -244,7 +265,7 @@
     </section>
 
     <section class="heatmap-section">
-      <h3>Ma trận nhiệt: Chi nhánh × Loại nhập điểm</h3>
+      <h3>Chi nhánh × Loại nhập điểm</h3>
       <div class="hint">Xanh = tốt, đỏ = cần chú ý. Ô xám = chi nhánh không có bản ghi thuộc loại đó.</div>
       <div id="heatmap-wrap"></div>
       <div class="legend">
@@ -360,6 +381,19 @@
   <footer class="dashboard-footer">
     Cập nhật lần đầu: <span id="data-date"></span> &nbsp;•&nbsp; Dùng nút "Tải file export mới" mỗi tháng để cập nhật số liệu
   </footer>
+</div>
+
+<div id="class-detail-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <h3 id="cdm-title">Chi tiết lớp</h3>
+        <p class="hint" id="cdm-subtitle"></p>
+      </div>
+      <button type="button" class="modal-close" id="cdm-close">✕</button>
+    </div>
+    <div class="modal-body" id="cdm-body"></div>
+  </div>
 </div>
 
 <script>
@@ -716,6 +750,19 @@ class Dashboard{
       const maxPage = Math.max(0, Math.ceil(this.getFilteredStudents().length / this.sPageSize) - 1);
       if (this.sPage < maxPage){ this.sPage++; this.renderStudentTable(); }
     });
+
+    document.getElementById('c-table-body').addEventListener('click', (e) => {
+      const tr = e.target.closest('tr[data-class]');
+      if (!tr) return;
+      this.openClassDetailModal(tr.dataset.class, tr.dataset.branch);
+    });
+    document.getElementById('cdm-close').addEventListener('click', () => this.closeClassDetailModal());
+    document.getElementById('class-detail-modal').addEventListener('click', (e) => {
+      if (e.target.id === 'class-detail-modal') this.closeClassDetailModal();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') this.closeClassDetailModal();
+    });
   }
 
   matchesFilter(d){
@@ -727,7 +774,7 @@ class Dashboard{
 
   render(){
     if (this.activeTab === 'classes'){
-      this.renderClassKPIs(); this.renderClassCharts(); this.renderHeatmap(); this.renderClassTable();
+      this.renderClassKPIs(); this.renderClassRegionTable(); this.renderClassCharts(); this.renderHeatmap(); this.renderClassTable();
     } else if (this.activeTab === 'students'){
       this.renderStudentKPIs(); this.renderStudentTable();
     } else if (this.activeTab === 'tracuu'){
@@ -817,6 +864,46 @@ class Dashboard{
     }, { indexAxis:'y', scales:{ x:{ suggestedMax:100 } }, plugins:{legend:{display:false}} });
   }
 
+  renderClassRegionTable(){
+    const section = document.getElementById('class-region-section');
+    // Chỉ hiện "Theo Vùng" khi không lọc theo Chi nhánh, và Vùng đang chọn
+    // 0 (tất cả) hoặc từ 2 vùng trở lên — chọn đúng 1 vùng thì phần này
+    // trùng với "Tổng quan" nên ẩn đi để khỏi gây nhầm lẫn.
+    const show = this.filters.branch.size === 0 && this.filters.region.size !== 1;
+    section.classList.toggle('hidden', !show);
+    if (!show) return;
+
+    const data = this.getFilteredClasses();
+    const regionAgg = this.groupBy(data, 'region');
+    const regions = Object.keys(regionAgg).sort((a,b)=>a.localeCompare(b,'vi'));
+    let html = `<table class="heatmap"><thead><tr>
+        <th>Vùng</th><th>Số lớp</th>
+        <th>Homework %</th><th>HW TB</th>
+        <th>Book Test %</th><th>BT TB</th>
+        <th>Lesson Quiz %</th><th>Quiz TB (CK English 1)</th><th>Quiz TB (CK English 2-3-4)</th>
+      </tr></thead><tbody>`;
+    regions.forEach(r => {
+      const rows = regionAgg[r];
+      const hw = this.weightedRate(rows,'hw_input','hw_records');
+      const bt = this.weightedRate(rows,'bt_input','bt_records');
+      const lq = this.weightedRate(rows,'lq_input','lq_records');
+      const hwAvg = this.weightedAvgScore(rows,'hw_score_total','hw_score_count');
+      const btAvg = this.weightedAvgScore(rows,'bt_score_total','bt_score_count');
+      const lqAvg1 = this.weightedAvgScore(rows.filter(d=>d.syllabus==='CK English 1'),'lq_score_total','lq_score_count');
+      const lqAvg234 = this.weightedAvgScore(rows.filter(d=>d.syllabus==='CK English 2'||d.syllabus==='CK English 3'||d.syllabus==='CK English 4'),'lq_score_total','lq_score_count');
+      html += `<tr><td class="rowlabel">${r}</td><td>${rows.length.toLocaleString('vi-VN')}</td>
+        <td><span class="cell" style="background:${rateColor(hw)}">${hw.toFixed(2)}%</span></td>
+        <td>${this.fmtAvg(hwAvg)} / 3</td>
+        <td><span class="cell" style="background:${rateColor(bt)}">${bt.toFixed(2)}%</span></td>
+        <td>${this.fmtAvg(btAvg)} / 20</td>
+        <td><span class="cell" style="background:${rateColor(lq)}">${lq.toFixed(2)}%</span></td>
+        <td>${this.fmtAvg(lqAvg1)} / 8</td>
+        <td>${this.fmtAvg(lqAvg234)} / 14</td></tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('class-region-wrap').innerHTML = html;
+  }
+
   renderHeatmap(){
     const data = this.getFilteredClasses();
     const branchAgg = this.groupBy(data, 'branch');
@@ -877,7 +964,7 @@ class Dashboard{
     if (this.cPage>maxPage) this.cPage=maxPage;
     const page = data.slice(this.cPage*this.cPageSize, this.cPage*this.cPageSize+this.cPageSize);
     document.getElementById('c-table-body').innerHTML = page.map(d => `
-      <tr><td>${d.region}</td><td>${d.branch}</td><td>${d.program}</td><td>${d.syllabus}</td><td>${d.class_name}</td>
+      <tr data-class="${String(d.class_name).replace(/"/g,'&quot;')}" data-branch="${String(d.branch).replace(/"/g,'&quot;')}"><td>${d.region}</td><td>${d.branch}</td><td>${d.program}</td><td>${d.syllabus}</td><td>${d.class_name}</td>
       <td>${d.week ?? ''}</td>
       <td>${d.hw_rate.toFixed(2)}%</td><td>${this.fmtAvg(d.hw_avg)}</td>
       <td>${d.bt_rate.toFixed(2)}%</td><td>${this.fmtAvg(d.bt_avg)}</td>
@@ -888,6 +975,43 @@ class Dashboard{
     document.getElementById('c-page-info').textContent = `${this.cPage+1}/${maxPage+1}`;
     document.getElementById('c-prev').disabled = this.cPage===0;
     document.getElementById('c-next').disabled = this.cPage>=maxPage;
+  }
+
+  openClassDetailModal(className, branch){
+    const cls = this.classData.find(d => d.class_name===className && d.branch===branch);
+    const students = this.studentData
+      .filter(d => d.class_name===className && d.branch===branch)
+      .sort((a,b) => String(a.name||'').localeCompare(String(b.name||''),'vi'));
+
+    document.getElementById('cdm-title').textContent = className;
+    document.getElementById('cdm-subtitle').textContent = cls
+      ? `${cls.branch} • ${cls.program}${cls.syllabus ? ' • '+cls.syllabus : ''} • ${students.length} học viên`
+      : `${students.length} học viên`;
+
+    const body = document.getElementById('cdm-body');
+    if (!students.length){
+      body.innerHTML = `<div class="lookup-empty">Lớp này chưa có học viên nào có điểm.</div>`;
+    } else {
+      body.innerHTML = `<table class="data-table"><thead><tr>
+          <th>Mã HV</th><th>Tên</th>
+          <th>HW %</th><th>HW TB</th>
+          <th>Test %</th><th>Test TB</th>
+          <th>Quiz %</th><th>Quiz TB</th>
+          <th>Tổng hợp %</th><th>Trạng thái</th>
+        </tr></thead><tbody>${students.map(d => `
+          <tr><td>${d.student_id||''}</td><td>${d.name||''}</td>
+          <td>${d.hw_rate.toFixed(2)}%</td><td>${this.fmtAvg(d.hw_avg)}</td>
+          <td>${d.bt_rate.toFixed(2)}%</td><td>${this.fmtAvg(d.bt_avg)}</td>
+          <td>${d.lq_rate.toFixed(2)}%</td><td>${this.fmtAvg(d.lq_avg)}</td>
+          <td>${d.composite.toFixed(2)}%</td>
+          <td><span class="status-badge" style="background:${rateColor(d.composite)}">${d.status}</span></td></tr>
+        `).join('')}</tbody></table>`;
+    }
+    document.getElementById('class-detail-modal').classList.remove('hidden');
+  }
+
+  closeClassDetailModal(){
+    document.getElementById('class-detail-modal').classList.add('hidden');
   }
 
   renderStudentKPIs(){
