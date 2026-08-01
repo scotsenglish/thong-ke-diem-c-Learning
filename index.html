@@ -124,7 +124,8 @@
   .lookup-empty{background:var(--bg-card);border-radius:var(--radius);padding:40px 20px;text-align:center;color:var(--text-secondary);font-size:13.5px;box-shadow:0 1px 3px rgba(0,0,0,.06);}
   .lookup-toomany{font-size:12px;color:var(--text-secondary);margin-bottom:10px;}
   .lookup-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px;}
-  .lookup-card{background:var(--bg-card);border-radius:var(--radius);padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.06);border-left:4px solid #cbd5e1;}
+  .lookup-card{background:var(--bg-card);border-radius:var(--radius);padding:18px 20px;box-shadow:0 1px 3px rgba(0,0,0,.06);border-left:4px solid #cbd5e1;cursor:pointer;transition:box-shadow .15s ease;}
+  .lookup-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.12);}
   .lookup-card-name{font-size:15px;font-weight:700;margin-bottom:2px;}
   .lookup-card-sub{font-size:12px;color:var(--text-secondary);margin-bottom:12px;}
   .lookup-card-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:10px;}
@@ -1119,6 +1120,7 @@ class Dashboard{
   }
 
   async openStudentDetailModal(studentId, studentName, className, branch){
+    document.getElementById('class-detail-modal').classList.remove('hidden');
     const backBtnHtml = `<button type="button" class="modal-back-btn" id="cdm-back">← Quay lại danh sách lớp</button>`;
     document.getElementById('cdm-title').textContent = studentName || '(chưa có tên)';
     document.getElementById('cdm-subtitle').textContent = `${className} • ${branch} — đang tải điểm chi tiết...`;
@@ -1193,6 +1195,13 @@ class Dashboard{
       this.refreshCascade();
       this.render();
     });
+    // Bấm vào 1 card học viên trong kết quả tra cứu -> mở popup chi tiết
+    // từng buổi của riêng học viên đó (dùng lại đúng modal của tab Theo Lớp).
+    document.getElementById('lookup-results').addEventListener('click', (e) => {
+      const card = e.target.closest('.lookup-card');
+      if (!card) return;
+      this.openStudentDetailModal(card.dataset.studentId, card.dataset.studentName, card.dataset.class, card.dataset.branch);
+    });
   }
 
   renderLookupResults(){
@@ -1222,7 +1231,7 @@ class Dashboard{
       html += `<div class="lookup-toomany">Tìm thấy ${data.length.toLocaleString('vi-VN')} kết quả — chỉ hiển thị ${MAX_CARDS} đầu tiên. Thu hẹp thêm bằng bộ lọc hoặc từ khoá cụ thể hơn.</div>`;
     }
     html += '<div class="lookup-cards">' + shown.map(d => `
-      <div class="lookup-card" style="border-left-color:${rateColor(d.composite)}">
+      <div class="lookup-card" style="border-left-color:${rateColor(d.composite)}" data-student-id="${this.escAttr(d.student_id)}" data-student-name="${this.escAttr(d.name)}" data-class="${this.escAttr(d.class_name)}" data-branch="${this.escAttr(d.branch)}">
         <div class="lookup-card-name">${d.name || '(chưa có tên)'}</div>
         <div class="lookup-card-sub">${d.student_id ? 'Mã HV: ' + d.student_id + ' • ' : ''}${d.branch} • ${d.class_name}</div>
         <div class="lookup-card-sub">${d.region} • ${d.program}${d.week ? ' • Lecture ' + d.week : ''}</div>
