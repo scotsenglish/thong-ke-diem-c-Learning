@@ -1015,26 +1015,29 @@ class Dashboard{
     const data = this.getFilteredClasses();
     const branchAgg = this.groupBy(data, 'branch');
     const branches = Object.keys(branchAgg).sort((a,b)=>a.localeCompare(b,'vi'));
-    const types = [
-      {label:'Homework', inputF:'hw_input', recF:'hw_records'},
-      {label:'Book Test', inputF:'bt_input', recF:'bt_records'},
-      {label:'Lesson Quiz', inputF:'lq_input', recF:'lq_records'},
-    ];
-    let html = '<table class="heatmap"><thead><tr><th>Chi nhánh</th>';
-    types.forEach(t => html += `<th>${t.label}</th>`);
-    html += '</tr></thead><tbody>';
+    let html = `<table class="heatmap"><thead><tr>
+        <th>Chi nhánh</th>
+        <th>Homework</th><th>HW TB</th>
+        <th>Book Test</th><th>BT TB</th>
+        <th>Lesson Quiz</th><th>Quiz TB (CK English 1)</th><th>Quiz TB (CK English 2-3-4)</th>
+      </tr></thead><tbody>`;
     branches.forEach(b => {
-      html += `<tr><td class="rowlabel">${b}</td>`;
       const rows = branchAgg[b];
-      types.forEach(t => {
-        const rec = rows.reduce((s,r)=>s+r[t.recF],0);
-        if (!rec){ html += `<td><span class="cell na">–</span></td>`; }
-        else {
-          const v = this.weightedRate(rows, t.inputF, t.recF);
-          html += `<td><span class="cell" style="background:${rateColor(v)}">${v.toFixed(2)}%</span></td>`;
-        }
-      });
-      html += '</tr>';
+      const hw = this.weightedRate(rows,'hw_input','hw_records');
+      const bt = this.weightedRate(rows,'bt_input','bt_records');
+      const lq = this.weightedRate(rows,'lq_input','lq_records');
+      const hwAvg = this.weightedAvgScore(rows,'hw_score_total','hw_score_count');
+      const btAvg = this.weightedAvgScore(rows,'bt_score_total','bt_score_count');
+      const lqAvg1 = this.weightedAvgScore(rows.filter(d=>d.syllabus==='CK English 1'),'lq_score_total','lq_score_count');
+      const lqAvg234 = this.weightedAvgScore(rows.filter(d=>d.syllabus==='CK English 2'||d.syllabus==='CK English 3'||d.syllabus==='CK English 4'),'lq_score_total','lq_score_count');
+      const rateCell = (v, rec) => rec ? `<span class="cell" style="background:${rateColor(v)}">${v.toFixed(2)}%</span>` : `<span class="cell na">–</span>`;
+      const hwRec = rows.reduce((s,r)=>s+r.hw_records,0);
+      const btRec = rows.reduce((s,r)=>s+r.bt_records,0);
+      const lqRec = rows.reduce((s,r)=>s+r.lq_records,0);
+      html += `<tr><td class="rowlabel">${b}</td>
+        <td>${rateCell(hw, hwRec)}</td><td>${this.fmtAvg(hwAvg)} / 3</td>
+        <td>${rateCell(bt, btRec)}</td><td>${this.fmtAvg(btAvg)} / 20</td>
+        <td>${rateCell(lq, lqRec)}</td><td>${this.fmtAvg(lqAvg1)} / 8</td><td>${this.fmtAvg(lqAvg234)} / 14</td></tr>`;
     });
     html += '</tbody></table>';
     document.getElementById('heatmap-wrap').innerHTML = html;
