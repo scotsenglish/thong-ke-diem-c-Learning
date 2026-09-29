@@ -32,7 +32,7 @@ const STAFF_ID = 9072;
 // thực sự đã diễn ra được xác định qua NGÀY THẬT từ CounClassInfoJournalList,
 // không phải cứ có trong CounRptLectureList là tính (vì API đó liệt kê SẴN
 // toàn bộ Lecture của cả khoá học, kể cả buổi tương lai chưa học tới).
-const MAX_WEEK = 30;
+const MAX_WEEK = 60; // khoá dài nhất thực tế có tới 50 buổi — để dư 60 tránh lặp lại lỗi cắt dữ liệu
 
 // Chi nhánh -> brch_id. Khi mở chi nhánh mới, thêm 1 dòng vào đây.
 const BRANCHES = [
@@ -559,7 +559,11 @@ async function main() {
                   const className = r.cls_name ?? job.Class ?? "";
                   const score = r.score ?? "";
                   const evaluation = r.esdtl_type ?? "";
-                  const studentId = r.cstd_id ?? r.cstd_id1 ?? r.std_id ?? "";
+                  // std_id là mã học viên CỐ ĐỊNH trong toàn hệ thống LMS; cstd_id/cstd_id1
+                  // chỉ là mã của LƯỢT GHI DANH (đổi khi lớp đóng rồi ghi danh lại 1 lượt
+                  // mới cho cùng học viên) — phải ưu tiên std_id để không bị tách thành
+                  // "học viên khác" và mất liên tục lịch sử điểm khi lớp đổi lượt ghi danh.
+                  const studentId = r.std_id ?? r.cstd_id ?? r.cstd_id1 ?? "";
                   const studentName = r.std_name ?? "";
                   const label = evalMap[evaluation];
                   if (!label) return;
