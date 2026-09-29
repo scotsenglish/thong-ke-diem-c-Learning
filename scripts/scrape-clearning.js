@@ -475,6 +475,10 @@ async function main() {
         const dedupKeys = new Set(prevDedupKeys || []);
         const rawByClass = prevRawByClass || {};
         const errors = [];
+        // DEBUG TẠM: chụp nguyên object thô của vài dòng "Homework Completion"
+        // đầu tiên gặp được, để xác định đúng tên field trạng thái/điểm — xoá
+        // đoạn này (và console.log tương ứng ở Node) sau khi đã tìm ra field.
+        const debugSamples = [];
 
         function addStudentSummary({ branch, program, syllabus, className, studentId, studentName, evaluation, score }) {
           const label = evalMap[evaluation];
@@ -568,6 +572,12 @@ async function main() {
                   const label = evalMap[evaluation];
                   if (!label) return;
 
+                  // DEBUG TẠM: lấy vài mẫu Homework Completion (cả có điểm lẫn
+                  // không) để soi tên field thật của trạng thái/điểm.
+                  if (label === "Homework" && debugSamples.length < 15) {
+                    debugSamples.push({ branch: job.Branch, className, lectureNo, raw: r });
+                  }
+
                   // Lưu điểm thô từng buổi (không phụ thuộc dedup — ghi đè theo key
                   // là tự khử trùng lặp) để phục vụ tra cứu chi tiết theo lớp/học viên.
                   const classKey = job.Branch + "||" + className;
@@ -623,7 +633,8 @@ async function main() {
 
         return {
           studentSummary, classSummary, dedupKeys: [...dedupKeys], rawByClass,
-          errors, stoppedEarly: index < classes.length, processedIndex: index, totalClasses: classes.length
+          errors, stoppedEarly: index < classes.length, processedIndex: index, totalClasses: classes.length,
+          debugSamples
         };
       },
       { BASE, classes: classesForCycle, MAX_WEEK, deadline, prevStudentSummary: studentSummary, prevClassSummary: classSummary, prevDedupKeys: dedupKeysArr, prevRawByClass: rawByClassData }
@@ -641,6 +652,15 @@ async function main() {
   rawByClassData = step2.rawByClass;
 
   console.log(`Đã xử lý ${step2.processedIndex}/${step2.totalClasses} lớp trong lần chạy này. Lỗi: ${step2.errors.length}`);
+
+  // DEBUG TẠM: in nguyên mẫu raw response của vài dòng Homework Completion —
+  // xoá khối này (và đoạn thu thập debugSamples ở trên) sau khi đã xác định
+  // được đúng tên field trạng thái/điểm.
+  if (step2.debugSamples && step2.debugSamples.length) {
+    console.log("== DEBUG_SAMPLES (Homework Completion, raw) ==");
+    console.log(JSON.stringify(step2.debugSamples, null, 2));
+    console.log("== HẾT DEBUG_SAMPLES ==");
+  }
 
   if (step2.stoppedEarly) {
     const remaining = classesForCycle.slice(step2.processedIndex);
