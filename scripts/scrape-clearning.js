@@ -481,12 +481,17 @@ async function main() {
         const dedupKeys = new Set(prevDedupKeys || []);
         const rawByClass = prevRawByClass || {};
         const errors = [];
-        // DEBUG TẠM: chụp nguyên object thô của vài dòng "Homework Completion"
-        // đầu tiên gặp được, để xác định đúng tên field trạng thái/điểm — xoá
-        // đoạn này (và console.log tương ứng ở Node) sau khi đã tìm ra field.
-        const debugSamples = [];
 
-        function addStudentSummary({ branch, program, syllabus, className, studentId, studentName, evaluation, score }) {
+        // "Đã nhập điểm" (inputCount, dùng để tính % nhập) và "điểm trung bình"
+        // (scoreCount/scoreTotal) là 2 việc KHÁC NHAU, phải tách riêng:
+        // - inputCount: dựa vào study_is_complete/etutor_is_complete = "Y" —
+        //   với Homework Completion, khi học viên đã nộp bài nhưng CHƯA được
+        //   giáo viên chấm tay bằng số, field "score" trả về chuỗi "New" (không
+        //   phải số), nên nếu chỉ dựa vào score thì bị đếm nhầm là "chưa nhập"
+        //   dù thực ra học viên ĐÃ làm bài.
+        // - scoreCount/scoreTotal: vẫn chỉ cộng khi "score" là số thật (loại
+        //   "New" và các giá trị không phải số khác ra khỏi điểm trung bình).
+        function addStudentSummary({ branch, program, syllabus, className, studentId, studentName, evaluation, score, isComplete }) {
           const label = evalMap[evaluation];
           if (!label) return;
           const key = [branch, program, syllabus, className, studentId, studentName].join("||");
@@ -496,15 +501,15 @@ async function main() {
           if (!studentSummary[key].evaluations[label]) studentSummary[key].evaluations[label] = initBucket();
           const bucket = studentSummary[key].evaluations[label];
           bucket.total++;
+          if (isComplete) bucket.inputCount++;
           const scoreNum = safeNumber(score);
           if (scoreNum !== null) {
-            bucket.inputCount++;
             bucket.scoreCount++;
             bucket.scoreTotal += scoreNum;
           }
         }
 
-        function addClassSummary({ branch, program, syllabus, className, lectureNo, evaluation, score }) {
+        function addClassSummary({ branch, program, syllabus, className, lectureNo, evaluation, score, isComplete }) {
           const label = evalMap[evaluation];
           if (!label) return;
           const key = [branch, program, syllabus, className].join("||");
@@ -515,9 +520,9 @@ async function main() {
           if (!classSummary[key].evaluations[label]) classSummary[key].evaluations[label] = initBucket();
           const bucket = classSummary[key].evaluations[label];
           bucket.total++;
+          if (isComplete) bucket.inputCount++;
           const scoreNum = safeNumber(score);
           if (scoreNum !== null) {
-            bucket.inputCount++;
             bucket.scoreCount++;
             bucket.scoreTotal += scoreNum;
           }
@@ -575,24 +580,12 @@ async function main() {
                   // "học viên khác" và mất liên tục lịch sử điểm khi lớp đổi lượt ghi danh.
                   const studentId = r.std_id ?? r.cstd_id ?? r.cstd_id1 ?? "";
                   const studentName = r.std_name ?? "";
+                  // "Đã nhập điểm" = học viên đã nộp/hoàn thành hoạt động — không
+                  // phụ thuộc vào việc "score" có phải số hay không (Homework khi
+                  // chưa được giáo viên chấm tay trả về score="New", không phải số).
+                  const isComplete = r.study_is_complete === "Y" || r.etutor_is_complete === "Y";
                   const label = evalMap[evaluation];
                   if (!label) return;
-
-                  // DEBUG TẠM: ưu tiên bắt các dòng Homework Completion ĐÃ hoàn
-                  // thành (có điểm hoặc bất kỳ cờ is_complete nào = Y), giữ thêm
-                  // vài dòng CHƯA làm để đối chiếu — nhằm soi tên field đúng.
-                  if (label === "Homework") {
-                    const doneCount = debugSamples.filter(d => d.tag === "done").length;
-                    const notDoneCount = debugSamples.filter(d => d.tag === "notdone").length;
-                    const looksDone = (r.score !== null && r.score !== undefined)
-                      || r.study_is_complete === "Y" || r.etutor_is_complete === "Y"
-                      || r.g_check_is_complete === "Y" || r.s_check_is_complete === "Y";
-                    if (looksDone && doneCount < 20) {
-                      debugSamples.push({ tag: "done", branch: job.Branch, className, lectureNo, raw: r });
-                    } else if (!looksDone && notDoneCount < 3) {
-                      debugSamples.push({ tag: "notdone", branch: job.Branch, className, lectureNo, raw: r });
-                    }
-                  }
 
                   // Lưu điểm thô từng buổi (không phụ thuộc dedup — ghi đè theo key
                   // là tự khử trùng lặp) để phục vụ tra cứu chi tiết theo lớp/học viên.
@@ -616,8 +609,8 @@ async function main() {
                     else dedupKeys.add(dedupKey);
                   }
                   if (shouldCount) {
-                    addStudentSummary({ branch: job.Branch, program, syllabus: job.Syllabus ?? "", className, studentId, studentName, evaluation, score });
-                    addClassSummary({ branch: job.Branch, program, syllabus: job.Syllabus ?? "", className, lectureNo, evaluation, score });
+                    addStudentSummary({ branch: job.Branch, program, syllabus: job.Syllabus ?? "", className, studentId, studentName, evaluation, score, isComplete });
+                    addClassSummary({ branch: job.Branch, program, syllabus: job.Syllabus ?? "", className, lectureNo, evaluation, score, isComplete });
                   }
                 });
               } catch (err) {
@@ -649,8 +642,7 @@ async function main() {
 
         return {
           studentSummary, classSummary, dedupKeys: [...dedupKeys], rawByClass,
-          errors, stoppedEarly: index < classes.length, processedIndex: index, totalClasses: classes.length,
-          debugSamples
+          errors, stoppedEarly: index < classes.length, processedIndex: index, totalClasses: classes.length
         };
       },
       { BASE, classes: classesForCycle, MAX_WEEK, deadline, prevStudentSummary: studentSummary, prevClassSummary: classSummary, prevDedupKeys: dedupKeysArr, prevRawByClass: rawByClassData }
@@ -668,15 +660,6 @@ async function main() {
   rawByClassData = step2.rawByClass;
 
   console.log(`Đã xử lý ${step2.processedIndex}/${step2.totalClasses} lớp trong lần chạy này. Lỗi: ${step2.errors.length}`);
-
-  // DEBUG TẠM: in nguyên mẫu raw response của vài dòng Homework Completion —
-  // xoá khối này (và đoạn thu thập debugSamples ở trên) sau khi đã xác định
-  // được đúng tên field trạng thái/điểm.
-  if (step2.debugSamples && step2.debugSamples.length) {
-    console.log("== DEBUG_SAMPLES (Homework Completion, raw) ==");
-    console.log(JSON.stringify(step2.debugSamples, null, 2));
-    console.log("== HẾT DEBUG_SAMPLES ==");
-  }
 
   if (step2.stoppedEarly) {
     const remaining = classesForCycle.slice(step2.processedIndex);
