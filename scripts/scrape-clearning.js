@@ -331,28 +331,34 @@ async function main() {
                 const sylName = syl.syl_name ?? "";
                 if (!sylId) continue;
 
-                const classes = await post("CounRptStudentClassList", { counn: { coun_bsem_id: bsemId, coun_syl_id: sylId, coun_cls_isclosed: 0 } });
-                for (const cls of classes) {
-                  const className = cls.cls_name ?? "";
-                  const clsId = cls.cls_id ?? "";
-                  if (!className || !clsId) continue;
-                  const cacheKey = [branch.brch_id, bsemId, corsId, sylId, clsId].join("||");
-                  if (seenCache.has(cacheKey)) continue;
-                  seenCache.add(cacheKey);
+                // Lấy CẢ lớp đang học (coun_cls_isclosed: 0) LẪN lớp đã đóng
+                // (coun_cls_isclosed: 1) — trước đây chỉ lấy lớp đang học nên
+                // lớp nào đóng là biến mất hẳn khỏi phạm vi quét, mất luôn dữ
+                // liệu điểm của cả lớp (kể cả lớp mới đóng gần đây).
+                for (const isClosed of [0, 1]) {
+                  const classes = await post("CounRptStudentClassList", { counn: { coun_bsem_id: bsemId, coun_syl_id: sylId, coun_cls_isclosed: isClosed } });
+                  for (const cls of classes) {
+                    const className = cls.cls_name ?? "";
+                    const clsId = cls.cls_id ?? "";
+                    if (!className || !clsId) continue;
+                    const cacheKey = [branch.brch_id, bsemId, corsId, sylId, clsId].join("||");
+                    if (seenCache.has(cacheKey)) continue;
+                    seenCache.add(cacheKey);
 
-                  const planKey = `${normalize(branch.brch_name)}|${normalize(className)}`;
-                  const plan = classPlanMap.get(planKey);
-                  cacheRows.push({
-                    Branch: branch.brch_name,
-                    Class: className,
-                    brch_id: branch.brch_id,
-                    bsem_id: bsemId,
-                    cors_id: corsId,
-                    syl_id: sylId,
-                    cls_id: clsId,
-                    Program: plan?.Program || programName,
-                    Syllabus: plan?.Syllabus || sylName
-                  });
+                    const planKey = `${normalize(branch.brch_name)}|${normalize(className)}`;
+                    const plan = classPlanMap.get(planKey);
+                    cacheRows.push({
+                      Branch: branch.brch_name,
+                      Class: className,
+                      brch_id: branch.brch_id,
+                      bsem_id: bsemId,
+                      cors_id: corsId,
+                      syl_id: sylId,
+                      cls_id: clsId,
+                      Program: plan?.Program || programName,
+                      Syllabus: plan?.Syllabus || sylName
+                    });
+                  }
                 }
               }
             }
