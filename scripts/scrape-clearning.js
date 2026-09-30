@@ -572,10 +572,20 @@ async function main() {
                   const label = evalMap[evaluation];
                   if (!label) return;
 
-                  // DEBUG TẠM: lấy vài mẫu Homework Completion (cả có điểm lẫn
-                  // không) để soi tên field thật của trạng thái/điểm.
-                  if (label === "Homework" && debugSamples.length < 15) {
-                    debugSamples.push({ branch: job.Branch, className, lectureNo, raw: r });
+                  // DEBUG TẠM: ưu tiên bắt các dòng Homework Completion ĐÃ hoàn
+                  // thành (có điểm hoặc bất kỳ cờ is_complete nào = Y), giữ thêm
+                  // vài dòng CHƯA làm để đối chiếu — nhằm soi tên field đúng.
+                  if (label === "Homework") {
+                    const doneCount = debugSamples.filter(d => d.tag === "done").length;
+                    const notDoneCount = debugSamples.filter(d => d.tag === "notdone").length;
+                    const looksDone = (r.score !== null && r.score !== undefined)
+                      || r.study_is_complete === "Y" || r.etutor_is_complete === "Y"
+                      || r.g_check_is_complete === "Y" || r.s_check_is_complete === "Y";
+                    if (looksDone && doneCount < 20) {
+                      debugSamples.push({ tag: "done", branch: job.Branch, className, lectureNo, raw: r });
+                    } else if (!looksDone && notDoneCount < 3) {
+                      debugSamples.push({ tag: "notdone", branch: job.Branch, className, lectureNo, raw: r });
+                    }
                   }
 
                   // Lưu điểm thô từng buổi (không phụ thuộc dedup — ghi đè theo key
