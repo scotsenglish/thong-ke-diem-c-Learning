@@ -18,6 +18,7 @@ const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
 const https = require("https");
+const zlib = require("zlib");
 
 // Giống i-Learning: job có thể bị hủy đột ngột bất cứ lúc nào, nên checkpoint
 // phải tự commit + push ngay trong lúc chạy để không mất tiến độ.
@@ -135,7 +136,7 @@ function buildRegionMap() {
 }
 const REGION_MAP = buildRegionMap();
 
-function postJson(urlStr, bodyObj) {
+function postJson(urlStr, bodyObj, redirectCount = 0) {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(bodyObj);
     const url = new URL(urlStr);
@@ -150,6 +151,16 @@ function postJson(urlStr, bodyObj) {
         }
       },
       res => {
+        // Apps Script Web App thường trả 302 chuyển sang URL nội dung thật
+        // (googleusercontent.com) — module https KHÔNG tự theo redirect như
+        // fetch/curl -L, nên nếu không tự bắt thì dữ liệu không bao giờ tới
+        // được doPost() dù log không báo lỗi gì (status vẫn "thành công" 302).
+        if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location && redirectCount < 5) {
+          res.resume();
+          const nextUrl = new URL(res.headers.location, url);
+          resolve(postJson(nextUrl.toString(), bodyObj, redirectCount + 1));
+          return;
+        }
         let data = "";
         res.on("data", c => (data += c));
         res.on("end", () => resolve({ status: res.statusCode, body: data }));
@@ -205,11 +216,20 @@ async function main() {
 
   const outDir = path.join(__dirname, "..", "data");
   fs.mkdirSync(outDir, { recursive: true });
-  const statePath = path.join(outDir, "clearning_state.json");
+  // Nén gzip trước khi ghi — với MAX_WEEK=60 + quét cả lớp đã đóng, file trạng
+  // thái thô (rawByClass) đã vượt quá 100MB (giới hạn cứng của GitHub) khiến
+  // mọi lần commit checkpoint đều thất bại. JSON dạng này (nhiều key/null lặp
+  // lại) nén được rất sâu, nên gzip là cách đơn giản nhất để đưa về an toàn.
+  const statePath = path.join(outDir, "clearning_state.json.gz");
+  const oldPlainStatePath = path.join(outDir, "clearning_state.json");
+
+  function saveState(obj) {
+    fs.writeFileSync(statePath, zlib.gzipSync(JSON.stringify(obj)));
+  }
 
   function loadJsonSafe(p, fallback) {
     try {
-      return JSON.parse(fs.readFileSync(p, "utf-8"));
+      return JSON.parse(zlib.gunzipSync(fs.readFileSync(p)).toString("utf-8"));
     } catch {
       return fallback;
     }
@@ -218,7 +238,13 @@ async function main() {
   const repoRoot = path.join(__dirname, "..");
   function gitCheckpointCommit(message, extraFiles = []) {
     try {
-      const filesToAdd = ["data/clearning_state.json", ...extraFiles];
+      // Xoá hẳn file .json cũ (không nén) nếu còn sót trong repo, để tránh
+      // vừa có bản cũ khổng lồ vừa có bản .gz mới song song.
+      if (fs.existsSync(oldPlainStatePath)) {
+        fs.rmSync(oldPlainStatePath);
+        execSync(`git rm --cached --ignore-unmatch data/clearning_state.json`, { cwd: repoRoot, stdio: "pipe" });
+      }
+      const filesToAdd = ["data/clearning_state.json.gz", ...extraFiles];
       execSync(`git add ${filesToAdd.join(" ")}`, { cwd: repoRoot, stdio: "pipe" });
       const hasChanges = execSync("git diff --cached --name-only", { cwd: repoRoot }).toString().trim().length > 0;
       if (!hasChanges) return;
@@ -384,10 +410,7 @@ async function main() {
     console.log(`Class ID Cache: ${step1.cacheRows.length} lớp. Lỗi: ${step1.errorRows.length}`);
     classesForCycle = step1.cacheRows;
 
-    fs.writeFileSync(
-      statePath,
-      JSON.stringify({ status: "in_progress", cycleStartedAt: new Date().toISOString(), totalClassesInCycle: classesForCycle.length, remainingClasses: classesForCycle, studentSummary: {}, classSummary: {}, dedupKeys: [], rawByClass: {} }, null, 2)
-    );
+    saveState({ status: "in_progress", cycleStartedAt: new Date().toISOString(), totalClassesInCycle: classesForCycle.length, remainingClasses: classesForCycle, studentSummary: {}, classSummary: {}, dedupKeys: [], rawByClass: {} });
   }
 
   let studentSummary = isResuming ? prevState.studentSummary || {} : {};
@@ -401,19 +424,16 @@ async function main() {
   // để job bị GitHub kill đột ngột bất cứ lúc nào cũng không mất tiến độ, và
   // lần chạy sau tiếp tục đúng chỗ thay vì cào lại từ đầu.
   await context.exposeFunction("__checkpointCL", (snapshot) => {
-    fs.writeFileSync(
-      statePath,
-      JSON.stringify({
-        status: "in_progress",
-        cycleStartedAt,
-        totalClassesInCycle,
-        remainingClasses: classesForCycle.slice(snapshot.done),
-        studentSummary: snapshot.studentSummary,
-        classSummary: snapshot.classSummary,
-        dedupKeys: snapshot.dedupKeys,
-        rawByClass: snapshot.rawByClass
-      }, null, 2)
-    );
+    saveState({
+      status: "in_progress",
+      cycleStartedAt,
+      totalClassesInCycle,
+      remainingClasses: classesForCycle.slice(snapshot.done),
+      studentSummary: snapshot.studentSummary,
+      classSummary: snapshot.classSummary,
+      dedupKeys: snapshot.dedupKeys,
+      rawByClass: snapshot.rawByClass
+    });
     console.log(`[Checkpoint] Đã lưu tạm ${snapshot.done}/${snapshot.total} lớp.`);
     gitCheckpointCommit(`Checkpoint c-Learning: ${snapshot.done}/${snapshot.total} lớp`);
   });
@@ -664,10 +684,7 @@ async function main() {
   if (step2.stoppedEarly) {
     const remaining = classesForCycle.slice(step2.processedIndex);
     console.log(`== Hết thời gian nội bộ — còn ${remaining.length} lớp sẽ được lần chạy kế tiếp tiếp tục ==`);
-    fs.writeFileSync(
-      statePath,
-      JSON.stringify({ status: "in_progress", cycleStartedAt, totalClassesInCycle, remainingClasses: remaining, studentSummary, classSummary, dedupKeys: dedupKeysArr, rawByClass: rawByClassData }, null, 2)
-    );
+    saveState({ status: "in_progress", cycleStartedAt, totalClassesInCycle, remainingClasses: remaining, studentSummary, classSummary, dedupKeys: dedupKeysArr, rawByClass: rawByClassData });
     gitCheckpointCommit(`Checkpoint c-Learning: ${step2.processedIndex}/${step2.totalClasses} lớp`);
     await browser.close();
     console.log("== Dừng lại giữa vòng quét, chờ lần chạy kế tiếp tiếp tục. Chưa đẩy dữ liệu lên Apps Script. ==");
@@ -742,7 +759,7 @@ async function main() {
     process.exit(1);
   }
 
-  fs.writeFileSync(statePath, JSON.stringify({ status: "done", cycleFinishedAt: new Date().toISOString(), totalClassesInCycle }, null, 2));
+  saveState({ status: "done", cycleFinishedAt: new Date().toISOString(), totalClassesInCycle });
   gitCheckpointCommit("c-Learning: hoàn tất 1 vòng quét, đã đẩy dữ liệu lên Apps Script", ["data/live-data.json"]);
 
   await browser.close();
